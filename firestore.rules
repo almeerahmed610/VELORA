@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['title', 'category', 'price', 'stock'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.category is string && data.category.size() > 0
+        && (data.price is number || data.price is int) && data.price >= 0
+        && (data.stock is int || data.stock is number) && data.stock >= 0;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'totalAmount', 'paymentMethod', 'status', 'shippingAddress'])
+        && data.userId is string && data.userId.size() > 0
+        && (data.totalAmount is number || data.totalAmount is int) && data.totalAmount >= 0
+        && data.paymentMethod is string
+        && data.status is string
+        && data.shippingAddress is string;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['productId', 'userId', 'userName', 'rating', 'comment'])
+        && data.productId is string && data.productId.size() > 0
+        && data.userId is string && data.userId.size() > 0
+        && data.userName is string && data.userName.size() > 0
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.comment is string && data.comment.size() > 0 && data.comment.size() <= 1000;
+    }
+
+    // Products catalog: publicly readable, authenticated write
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated();
+
+      // Product Reviews subcollection
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthenticated() 
+          && request.resource.data.userId == request.auth.uid 
+          && isValidReview(request.resource.data);
+        allow update: if isAuthenticated() 
+          && (resource.data.userId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['helpfulCount']))
+          && isValidReview(request.resource.data);
+        allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // User Orders collection: user ownership isolation
+    match /users/{userId}/orders/{orderId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId && isValidOrder(request.resource.data);
+      allow update: if isOwner(userId) && isValidOrder(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+  }
+}

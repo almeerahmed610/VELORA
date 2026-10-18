@@ -1,0 +1,6 @@
+{
+  "name": "VELORA",
+  "description": "VELORA premier online shopping marketplace with flash deals, real-time tracking, secure payments, cart, wishlist, seller admin hub, customer reviews, offline access, and multilingual support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
